@@ -37,18 +37,16 @@
   <audio id="pageSound" src="sounds/page-flip.mp3"></audio>
 
   <script>
-    // Pastikan Anda menjalankan ini lewat web server (misalnya GitHub Pages) dan bukan dengan file://
+    // Pastikan menjalankan melalui web server (misalnya GitHub Pages)
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
-    // Ganti path ini jika perlu (pastikan nama file dan folder sudah tepat, case-sensitive!)
+    // Path ke file PDF (perhatikan case-sensitif dan struktur folder)
     const pdfUrl = "pdf/document.pdf";
     let pdfDoc = null;
     let totalPages = 0;
     const flipbookContainer = document.getElementById("flipbook");
 
     console.log("Mulai load PDF dari:", pdfUrl);
-    
-    // Load PDF
     pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
       console.log("PDF berhasil diload.");
       pdfDoc = pdf;
@@ -57,6 +55,7 @@
 
       let promises = [];
 
+      // Render setiap halaman PDF ke dalam elemen div.page
       for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
         let promise = new Promise((resolve, reject) => {
           const pageDiv = document.createElement("div");
@@ -72,20 +71,29 @@
         promises.push(promise);
       }
 
-      // Setelah semua halaman dirender, inisialisasi turn.js
       Promise.all(promises).then(() => {
+        // Jika jumlah halaman ganjil, tambahkan blank page agar jumlah halaman genap untuk tampilan double
+        if (totalPages % 2 !== 0) {
+          const blankPage = document.createElement("div");
+          blankPage.className = "page blank";
+          flipbookContainer.appendChild(blankPage);
+          totalPages++;
+          console.log("Blank page ditambahkan. Total halaman sekarang:", totalPages);
+        }
+        
         console.log("Semua halaman PDF berhasil dirender.");
         const flipbookWidth = $("#flipbook").width();
         const flipbookHeight = $("#flipbook").height();
         console.log("Ukuran flipbook:", flipbookWidth, "x", flipbookHeight);
 
+        // Inisialisasi turn.js dengan tampilan double page
         $("#flipbook").turn({
           width: flipbookWidth,
           height: flipbookHeight,
           autoCenter: true,
           duration: 1200,
           gradients: true,
-          display: "single",
+          display: "double", // Tampilkan dua halaman secara berdampingan
           when: {
             turning: function (e, page) {
               updateSliderPosition(page);
@@ -129,12 +137,11 @@
       const sound = document.getElementById("pageSound");
       sound.currentTime = 0;
       sound.play().catch(err => {
-        // Di beberapa browser, autoplay audio mungkin diblokir.
         console.warn("Audio tidak dapat diputar otomatis:", err);
       });
     }
 
-    // Fungsi untuk memperbarui posisi slider navigasi
+    // Fungsi untuk memperbarui posisi slider dan teks nomor halaman
     function updateSliderPosition(page) {
       const slider = $("#slider");
       const pageNumber = $("#pageNumber");
@@ -144,6 +151,17 @@
       slider.css("left", sliderPos + "px");
       pageNumber.text(`Halaman ${page}`);
     }
+
+    // Event listener untuk klik pada navigation bar agar dapat melompat ke halaman tertentu
+    $(".navigation-bar").on("click", function(e) {
+      let offset = $(this).offset().left;
+      let width = $(this).width();
+      let clickX = e.pageX - offset;
+      let percentage = clickX / width;
+      let newPage = Math.round(percentage * (totalPages - 1)) + 1;
+      console.log("Navigasi klik, menuju halaman:", newPage);
+      $("#flipbook").turn("page", newPage);
+    });
   </script>
 </body>
 </html>
