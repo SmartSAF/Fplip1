@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flipbook PDF Interaktif</title>
+  
+  <!-- CSS Flipbook -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  
+  <!-- Turn.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/turn.min.js"></script>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+</head>
+<body>
+  <h1 style="text-align: center; color: white; background: orange; padding: 10px;">
+    Flipbook PDF Interaktif
+  </h1>
+
+  <!-- Container Flipbook -->
+  <div id="flipbook"></div>
+
+  <!-- Navigasi -->
+  <div class="navigation-container">
+    <div class="navigation-bar">
+      <div class="slider" id="slider"></div>
+    </div>
+    <div class="page-number" id="pageNumber">Halaman 1</div>
+  </div>
+
+  <!-- Efek Suara -->
+  <audio id="pageSound" src="sounds/page-flip.mp3"></audio>
+
+  <script>
+    // Pastikan Anda menjalankan ini lewat web server (misalnya GitHub Pages) dan bukan dengan file://
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+
+    // Ganti path ini jika perlu (pastikan nama file dan folder sudah tepat, case-sensitive!)
+    const pdfUrl = "pdf/document.pdf";
+    let pdfDoc = null;
+    let totalPages = 0;
+    const flipbookContainer = document.getElementById("flipbook");
+
+    console.log("Mulai load PDF dari:", pdfUrl);
+    
+    // Load PDF
+    pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
+      console.log("PDF berhasil diload.");
+      pdfDoc = pdf;
+      totalPages = pdf.numPages;
+      console.log("Jumlah halaman PDF:", totalPages);
+
+      let promises = [];
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        let promise = new Promise((resolve, reject) => {
+          const pageDiv = document.createElement("div");
+          pageDiv.className = "page";
+
+          const canvas = document.createElement("canvas");
+          canvas.className = "pdf-page";
+          pageDiv.appendChild(canvas);
+          flipbookContainer.appendChild(pageDiv);
+
+          renderPage(pageNum, canvas, resolve, reject);
+        });
+        promises.push(promise);
+      }
+
+      // Setelah semua halaman dirender, inisialisasi turn.js
+      Promise.all(promises).then(() => {
+        console.log("Semua halaman PDF berhasil dirender.");
+        const flipbookWidth = $("#flipbook").width();
+        const flipbookHeight = $("#flipbook").height();
+        console.log("Ukuran flipbook:", flipbookWidth, "x", flipbookHeight);
+
+        $("#flipbook").turn({
+          width: flipbookWidth,
+          height: flipbookHeight,
+          autoCenter: true,
+          duration: 1200,
+          gradients: true,
+          display: "single",
+          when: {
+            turning: function (e, page) {
+              updateSliderPosition(page);
+              playSound();
+            }
+          }
+        });
+
+        updateSliderPosition(1);
+      }).catch(error => {
+        console.error("Terjadi error saat merender halaman:", error);
+      });
+    }).catch(function(error) {
+      console.error("Error loading PDF:", error);
+    });
+
+    // Fungsi untuk merender halaman PDF ke canvas
+    function renderPage(pageNum, canvas, callback, errorCallback) {
+      pdfDoc.getPage(pageNum).then(function(page) {
+        const scale = 1.5;
+        const viewport = page.getViewport({ scale });
+        const context = canvas.getContext("2d");
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        const renderContext = { canvasContext: context, viewport: viewport };
+        page.render(renderContext).promise.then(function() {
+          console.log("Halaman", pageNum, "berhasil dirender.");
+          callback();
+        }).catch(function(error) {
+          console.error("Error merender halaman", pageNum, ":", error);
+          errorCallback(error);
+        });
+      }).catch(function(error) {
+        console.error("Error mengambil halaman", pageNum, ":", error);
+        errorCallback(error);
+      });
+    }
+
+    // Fungsi untuk memainkan suara page flip
+    function playSound() {
+      const sound = document.getElementById("pageSound");
+      sound.currentTime = 0;
+      sound.play().catch(err => {
+        // Di beberapa browser, autoplay audio mungkin diblokir.
+        console.warn("Audio tidak dapat diputar otomatis:", err);
+      });
+    }
+
+    // Fungsi untuk memperbarui posisi slider navigasi
+    function updateSliderPosition(page) {
+      const slider = $("#slider");
+      const pageNumber = $("#pageNumber");
+      const barWidth = $(".navigation-bar").width();
+      const sliderWidth = slider.width();
+      const sliderPos = ((page - 1) / (totalPages - 1)) * (barWidth - sliderWidth);
+      slider.css("left", sliderPos + "px");
+      pageNumber.text(`Halaman ${page}`);
+    }
+  </script>
+</body>
+</html>
